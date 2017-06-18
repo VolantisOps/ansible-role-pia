@@ -1,0 +1,70 @@
+---
+- name: Install openvpn
+  pacman: name=openvpn state=present
+
+- name: Ensure openvpn config directory exists
+  file:
+    path: /etc/openvpn
+    state: directory
+    owner: root
+    group: root
+
+- name: Install private-internet-access-vpn from aur
+  aur: name=private-internet-access-vpn
+  become: yes
+  become_user: "{{ pia_build_user }}"
+  notify: restart openvpn
+
+- name: Ensure private-internet-access config directory exists
+  file:
+    path: /etc/private-internet-access
+    state: directory
+    owner: root
+    group: root
+    
+- name: Copy login.conf to private-internet-access config directory
+  template:
+    src: login.conf.j2
+    dest: /etc/private-internet-access/login.conf
+    owner: root
+    group: root
+    mode: 0600
+  notify: restart openvpn
+
+- name: Check that the openvpn client config file exists
+  stat:
+    path: "/etc/openvpn/client/{{ pia_server }}.conf"
+  register: pia_conf_stat_result
+
+- name: Generate openvpn config files for pia
+  command: pia -a
+  when: pia_conf_stat_result.stat.exists == False
+  notify: restart openvpn
+
+- name: Ensure openvpn is running
+  service: "name=openvpn-client@{{ pia_server }}.service state=started enabled=yes"
+
+- name: Install /usr/local/bin/pia-connection-check script
+  template:
+    src: pia-connection-check.j2
+    dest: /usr/local/bin/pia-connection-check
+    owner: root
+    group: root
+    mode: 0755
+  when: pia_enable_cron_monitor
+
+- name: Ensure the connection is up
+  command: /usr/local/bin/pia-connection-check
+  register: pia_connection_check
+  changed_when: "pia_connection_check.rc != 0"
+  failed_when: "pia_connection_check.rc < 0"
+  when: pia_enable_cron_monitor
+
+- name: Set up cron job to monitor and restart the pia vpn connection
+  cron:
+    name: pia_connection_check
+    minute: "/{{ pia_cron_monitor_minutes }}"
+    user: root
+    job: "/usr/local/bin/pia-connection-check"
+    cron_file: ansible_pia-connection-check
+  when: pia_enable_cron_monitor

@@ -1,0 +1,3 @@
+---
+- name: restart openvpn
+  service: "name=openvpn-client@{{ pia_server }}.service state=restarted"

@@ -1,0 +1,7 @@
+---
+pia_username: ''
+pia_password: ''
+pia_server: 'US_Midwest'
+pia_build_user: pacaur-builder
+pia_enable_cron_monitor: true
+pia_cron_monitor_minutes: 5
